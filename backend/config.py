@@ -30,13 +30,13 @@ class Settings(BaseSettings):
     livekit_api_key: str
     livekit_api_secret: str
     
-    # LLM
-    llm_provider: str = "ollama"  # ollama or llamacpp
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "llama3.2:latest"
-    llama_model_path: Optional[str] = None
-    llama_n_ctx: int = 4096
-    llama_n_gpu_layers: int = 35
+    # GROQ CONFIGURATION (UNIFIED LLM)
+    # ========================================================================
+    groq_api_key: str
+    groq_model: str = "llama-3.3-70b-versatile"
+    groq_temperature: float = 0.7
+    groq_max_tokens: int = 1024
+    groq_top_p: float = 0.9
     
     # Speech-to-Text
     stt_provider: str = "deepgram"  # deepgram or whisper

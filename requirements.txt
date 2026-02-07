@@ -9,3 +9,6 @@ pydantic-settings
 sqlalchemy
 asyncpg
 alembic
+
+# Logging and Monitoring
+loguru
