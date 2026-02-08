@@ -12,3 +12,10 @@ alembic
 
 # Logging and Monitoring
 loguru
+
+# LangChain and Groq
+langchain
+langchain-community
+langchain-core
+langchain-groq
+groq
