@@ -1,21 +1,45 @@
-# FastAPI and Web Framework
-fastapi
-uvicorn[standard]
-python-multipart
-pydantic
-pydantic-settings
-
-# Database
-sqlalchemy
-asyncpg
-alembic
-
-# Logging and Monitoring
-loguru
-
-# LangChain and Groq
-langchain
-langchain-community
-langchain-core
-langchain-groq
-groq
+aiohttp==3.13.3
+aiosignal==1.4.0
+beanie==2.0.1
+colorama==0.4.6
+dataclasses-json==0.6.7
+distro==1.9.0
+dnspython==2.8.0
+fastapi==0.128.4
+groq==0.37.1
+idna==3.11
+jsonpatch==1.33
+jsonpointer==3.0.0
+langchain==1.2.9
+langchain-classic==1.0.1
+langchain-community==0.4.1
+langchain-core==1.2.9
+langchain-groq==1.1.2
+langchain-text-splitters==1.1.0
+langgraph==1.0.8
+langgraph-checkpoint==4.0.0
+langgraph-prebuilt==1.0.7
+langgraph-sdk==0.3.4
+langsmith==0.6.9
+lazy-model==0.4.0
+loguru==0.7.3
+multidict==6.7.1
+mypy_extensions==1.1.0
+numpy==2.4.2
+pydantic==2.12.5
+pydantic-settings==2.12.0
+pydantic_core==2.41.5
+pymongo==4.16.0
+python-dotenv==1.2.1
+python-multipart==0.0.22
+PyYAML==6.0.3
+requests==2.32.5
+requests-toolbelt==1.0.0
+setuptools==80.10.2
+urllib3==2.6.3
+uuid_utils==0.14.0
+uvicorn==0.40.0
+watchfiles==1.1.1
+websockets==16.0
+pymongo == 4.16.0
+langdetect==1.0.9
