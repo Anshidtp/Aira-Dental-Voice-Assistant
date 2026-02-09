@@ -1,322 +1,155 @@
-from typing import List, Dict, Any, Optional, AsyncIterator
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
-from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_community.chat_message_histories import ChatMessageHistory
-from langchain_classic.chains import LLMChain
-from ..config import settings
-from ..utils.logger import log
+from typing import List, Dict, Optional
+from loguru import logger
+
+from ..config.settings import settings
 
 
-class llmService:
-    """
-    Unified LLM service using Groq Llama for all operations
-    Used for both web chat and telephony
-    """
+class LLMService:
+    """Service for interacting with Groq Cloud LLM"""
     
     def __init__(self):
-        self.api_key = settings.groq_api_key
-        self.model_name = settings.groq_model
-        
-        # Initialize Groq LLM
+        """Initialize Groq LLM service"""
         self.llm = ChatGroq(
-            api_key=self.api_key,
-            model_name=self.model_name,
-            temperature=settings.groq_temperature,
-            max_tokens=settings.groq_max_tokens,
-            top_p=settings.groq_top_p,
-            timeout=30.0,
-            max_retries=2,
+            groq_api_key=settings.GROQ_API_KEY,
+            model_name=settings.GROQ_MODEL,
+            temperature=settings.GROQ_TEMPERATURE,
+            max_tokens=settings.GROQ_MAX_TOKENS,
         )
-        
-        log.info(f"Unified Groq service initialized with model: {self.model_name}")
-    
-    async def generate(
-        self,
-        messages: List[Dict[str, str]],
-        stream: bool = False,
-        temperature: Optional[float] = None,
-        max_tokens: Optional[int] = None
-    ) -> str:
-        """
-        Generate response from messages
-        
-        Args:
-            messages: List of message dictionaries with 'role' and 'content'
-            stream: Whether to stream response
-            temperature: Optional temperature override
-            max_tokens: Optional max tokens override
-        
-        Returns:
-            Generated response text
-        """
-        try:
-            # Convert to LangChain format
-            langchain_messages = self._convert_messages(messages)
-            
-            # Create temporary LLM with overrides if needed
-            llm = self.llm
-            if temperature is not None or max_tokens is not None:
-                llm = ChatGroq(
-                    api_key=self.api_key,
-                    model_name=self.model_name,
-                    temperature=temperature or settings.groq_temperature,
-                    max_tokens=max_tokens or settings.groq_max_tokens,
-                    top_p=settings.groq_top_p,
-                    timeout=30.0,
-                    max_retries=2,
-                )
-            
-            if stream:
-                # Streaming response
-                full_response = ""
-                async for chunk in llm.astream(langchain_messages):
-                    full_response += chunk.content
-                return full_response
-            else:
-                # Non-streaming response
-                response = await llm.ainvoke(langchain_messages)
-                return response.content
-                
-        except Exception as e:
-            log.error(f"Error generating response: {e}")
-            raise
-    
-    async def generate_streaming(
-        self,
-        messages: List[Dict[str, str]]
-    ) -> AsyncIterator[str]:
-        """
-        Generate streaming response
-        
-        Args:
-            messages: List of message dictionaries
-        
-        Yields:
-            Response chunks
-        """
-        try:
-            langchain_messages = self._convert_messages(messages)
-            
-            async for chunk in self.llm.astream(langchain_messages):
-                if chunk.content:
-                    yield chunk.content
-                    
-        except Exception as e:
-            log.error(f"Error in streaming: {e}")
-            raise
-    
-    def create_conversation_chain(
-        self,
-        system_prompt: str,
-        memory_key: str = "chat_history"
-    ) -> ConversationChain:
-        """
-        Create conversation chain with memory
-        
-        Args:
-            system_prompt: System prompt for conversation
-            memory_key: Key for conversation memory
-        
-        Returns:
-            ConversationChain instance
-        """
-        # Create memory
-        memory = ConversationBufferMemory(
-            memory_key=memory_key,
-            return_messages=True
-        )
-        
-        # Create prompt template
-        prompt = ChatPromptTemplate.from_messages([
-            ("system", system_prompt),
-            MessagesPlaceholder(variable_name=memory_key),
-            ("human", "{input}")
-        ])
-        
-        # Create conversation chain
-        chain = ConversationChain(
-            llm=self.llm,
-            memory=memory,
-            prompt=prompt,
-            verbose=settings.debug
-        )
-        
-        return chain
-    
-    def _convert_messages(
-        self,
-        messages: List[Dict[str, str]]
-    ) -> List[Any]:
-        """Convert message dictionaries to LangChain format"""
-        langchain_messages = []
-        
-        for msg in messages:
-            role = msg.get("role", "user")
-            content = msg.get("content", "")
-            
-            if role == "system":
-                langchain_messages.append(SystemMessage(content=content))
-            elif role == "assistant":
-                langchain_messages.append(AIMessage(content=content))
-            else:
-                langchain_messages.append(HumanMessage(content=content))
-        
-        return langchain_messages
-    
-    def get_model_info(self) -> Dict[str, Any]:
-        """Get model information"""
-        return {
-            "provider": "groq",
-            "model": self.model_name,
-            "temperature": settings.groq_temperature,
-            "max_tokens": settings.groq_max_tokens,
-            "top_p": settings.groq_top_p,
-            "status": "active",
-            "use_case": "unified (web + telephony)"
-        }
-
-
-class ConversationManager:
-    """
-    Manages conversation state and context
-    Used for both web and telephony conversations
-    """
-    
-    def __init__(
-        self,
-        session_id: str,
-        language: str = "en",
-        channel: str = "unknown"
-    ):
-        self.session_id = session_id
-        self.language = language
-        self.channel = channel  # 'web' or 'telephony'
-        self.conversation_history: List[Dict[str, Any]] = []
-        self.context: Dict[str, Any] = {}
-        self.groq_service = llmService()
-        
-        log.info(f"Conversation manager created: {session_id} ({channel}, {language})")
-    
-    def add_message(self, role: str, content: str, metadata: Optional[Dict] = None):
-        """Add message to conversation history"""
-        self.conversation_history.append({
-            "role": role,
-            "content": content,
-            "timestamp": self._get_timestamp(),
-            "metadata": metadata or {}
-        })
-    
-    def get_messages_for_llm(self) -> List[Dict[str, str]]:
-        """Get conversation history in LLM format"""
-        return [
-            {"role": msg["role"], "content": msg["content"]}
-            for msg in self.conversation_history
-        ]
+        logger.info(f"Groq LLM initialized with model: {settings.GROQ_MODEL}")
     
     async def generate_response(
         self,
-        user_message: str,
+        message: str,
+        conversation_history: Optional[List[Dict[str, str]]] = None,
         system_prompt: Optional[str] = None,
-        temperature: Optional[float] = None
     ) -> str:
         """
-        Generate AI response
+        Generate a response from the LLM
         
         Args:
-            user_message: User's message
-            system_prompt: Optional system prompt override
-            temperature: Optional temperature override
-        
+            message: User's message
+            conversation_history: Previous conversation messages
+            system_prompt: System prompt for context
+            
         Returns:
-            AI response
+            LLM response text
         """
-        # Add user message
-        self.add_message("user", user_message)
-        
-        # Prepare messages
-        messages = []
-        
-        # Add system prompt if provided
-        if system_prompt:
-            messages.append({"role": "system", "content": system_prompt})
-        
-        # Add conversation history
-        messages.extend(self.get_messages_for_llm())
-        
-        # Generate response
-        response = await self.groq_service.generate(
-            messages=messages,
-            temperature=temperature
-        )
-        
-        # Add assistant response
-        self.add_message("assistant", response)
-        
-        return response
+        try:
+            messages = []
+            
+            # Add system prompt
+            if system_prompt:
+                messages.append(SystemMessage(content=system_prompt))
+            
+            # Add conversation history
+            if conversation_history:
+                for msg in conversation_history:
+                    if msg["role"] == "user":
+                        messages.append(HumanMessage(content=msg["content"]))
+                    elif msg["role"] == "assistant":
+                        messages.append(AIMessage(content=msg["content"]))
+            
+            # Add current message
+            messages.append(HumanMessage(content=message))
+            
+            # Generate response
+            response = await self.llm.ainvoke(messages)
+            
+            logger.debug(f"Generated response for message: {message[:50]}...")
+            return response.content
+            
+        except Exception as e:
+            logger.error(f"Error generating LLM response: {e}")
+            raise
     
-    def update_context(self, key: str, value: Any):
-        """Update conversation context"""
-        self.context[key] = value
-    
-    def get_context(self, key: str, default: Any = None) -> Any:
-        """Get context value"""
-        return self.context.get(key, default)
-    
-    def get_summary(self) -> Dict[str, Any]:
-        """Get conversation summary"""
-        return {
-            "session_id": self.session_id,
-            "channel": self.channel,
-            "language": self.language,
-            "message_count": len(self.conversation_history),
-            "context": self.context,
-            "duration": self._calculate_duration()
-        }
-    
-    def _get_timestamp(self) -> str:
-        """Get current timestamp"""
-        from datetime import datetime
-        return datetime.utcnow().isoformat()
-    
-    def _calculate_duration(self) -> float:
-        """Calculate conversation duration in seconds"""
-        if len(self.conversation_history) < 2:
-            return 0.0
+    async def extract_entities(self, text: str, language: str = "en") -> Dict:
+        """
+        Extract entities from text (name, phone, date, time, etc.)
         
-        from datetime import datetime
-        start = datetime.fromisoformat(self.conversation_history[0]["timestamp"])
-        end = datetime.fromisoformat(self.conversation_history[-1]["timestamp"])
-        return (end - start).total_seconds()
+        Args:
+            text: Input text
+            language: Language code
+            
+        Returns:
+            Dictionary of extracted entities
+        """
+        system_prompt = f"""
+            You are an entity extraction assistant for a dental clinic appointment system.
+            Extract the following entities from the user's message:
+            - patient_name: Full name of the patient
+            - phone: Phone number
+            - email: Email address
+            - appointment_date: Date in YYYY-MM-DD format
+            - appointment_time: Time in HH:MM format (24-hour)
+            - reason: Reason for appointment
+
+            Language: {language}
+
+            Return ONLY a JSON object with extracted entities. Use null for missing entities.
+            Example: {{"patient_name": "John Doe", "phone": "+919876543210", "email": null, "appointment_date": "2024-03-15", "appointment_time": "10:00", "reason": "dental checkup"}}
+            """
+        
+        try:
+            response = await self.generate_response(
+                message=text,
+                system_prompt=system_prompt
+            )
+            
+            # Parse JSON response
+            import json
+            entities = json.loads(response)
+            logger.debug(f"Extracted entities: {entities}")
+            return entities
+            
+        except Exception as e:
+            logger.error(f"Error extracting entities: {e}")
+            return {}
+    
+    async def detect_intent(self, text: str, language: str = "en") -> str:
+        """
+        Detect user intent from text
+        
+        Args:
+            text: Input text
+            language: Language code
+            
+        Returns:
+            Intent string
+        """
+        system_prompt = f"""
+            You are an intent detection assistant for a dental clinic.
+            Detect the primary intent from the user's message.
+
+            Possible intents:
+            - book_appointment: User wants to book an appointment
+            - cancel_appointment: User wants to cancel
+            - reschedule_appointment: User wants to reschedule
+            - inquiry: General inquiry about services
+            - emergency: Dental emergency
+            - greeting: Just greeting
+            - other: Other intents
+
+            Language: {language}
+
+            Return ONLY the intent name, nothing else.
+            """
+        
+        try:
+            intent = await self.generate_response(
+                message=text,
+                system_prompt=system_prompt
+            )
+            
+            intent = intent.strip().lower()
+            logger.debug(f"Detected intent: {intent}")
+            return intent
+            
+        except Exception as e:
+            logger.error(f"Error detecting intent: {e}")
+            return "other"
 
 
 # Global instance
-groq_service = llmService()
-
-# Active conversations storage (use Redis in production)
-active_conversations: Dict[str, ConversationManager] = {}
-
-
-def get_or_create_conversation(
-    session_id: str,
-    language: str = "en",
-    channel: str = "unknown"
-) -> ConversationManager:
-    """Get or create conversation manager"""
-    if session_id not in active_conversations:
-        active_conversations[session_id] = ConversationManager(
-            session_id=session_id,
-            language=language,
-            channel=channel
-        )
-    return active_conversations[session_id]
-
-
-def end_conversation(session_id: str) -> Optional[Dict[str, Any]]:
-    """End conversation and return summary"""
-    if session_id in active_conversations:
-        conversation = active_conversations[session_id]
-        summary = conversation.get_summary()
-        del active_conversations[session_id]
-        return summary
-    return None
+groq_service = LLMService()
