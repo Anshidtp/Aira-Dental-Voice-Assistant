@@ -1,182 +1,179 @@
+from beanie import Document, Indexed
+from pydantic import Field, EmailStr
 from datetime import datetime
-from sqlalchemy import Column, String, DateTime, Integer, Text, Boolean, ForeignKey, Float, JSON
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
-from sqlalchemy.sql import func
-import uuid
-
-Base = declarative_base()
+from typing import Optional, List
+from enum import Enum
 
 
-def generate_uuid():
-    """Generate UUID for primary keys"""
-    return str(uuid.uuid4())
+class AppointmentStatus(str, Enum):
+    """Appointment status enumeration"""
+    PENDING = "pending"
+    CONFIRMED = "confirmed"
+    CANCELLED = "cancelled"
+    COMPLETED = "completed"
+    NO_SHOW = "no_show"
 
 
-class Patient(Base):
-    """Patient model"""
-    __tablename__ = "patients"
-    
-    id = Column(String, primary_key=True, default=generate_uuid)
-    name = Column(String(255), nullable=False, index=True)
-    phone = Column(String(20), nullable=False, unique=True, index=True)
-    email = Column(String(255), nullable=True, unique=True, index=True)
-    preferred_language = Column(String(5), nullable=False, default="en")
-    date_of_birth = Column(DateTime, nullable=True)
-    gender = Column(String(20), nullable=True)
-    address = Column(Text, nullable=True)
-    
-    # Medical information
-    medical_history = Column(JSON, nullable=True)
-    allergies = Column(JSON, nullable=True)
-    medications = Column(JSON, nullable=True)
-    
-    # Timestamps
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
-    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
-    
-    # Relationships
-    appointments = relationship("Appointment", back_populates="patient", cascade="all, delete-orphan")
-    sessions = relationship("VoiceSession", back_populates="patient", cascade="all, delete-orphan")
-    
-    def __repr__(self):
-        return f"<Patient(id={self.id}, name={self.name}, phone={self.phone})>"
+class LanguageEnum(str, Enum):
+    """Supported languages"""
+    ENGLISH = "en"
+    MALAYALAM = "ml"
+    HINDI = "hi"
+    TAMIL = "ta"
 
 
-class Appointment(Base):
+class Appointment(Document):
     """Appointment model"""
-    __tablename__ = "appointments"
+    patient_name: str = Field(..., min_length=2, max_length=255)
+    patient_phone: Indexed(str) = Field(..., pattern=r'^\+?[1-9]\d{9,14}$')
+    patient_email: Optional[EmailStr] = None
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    patient_id = Column(String, ForeignKey("patients.id"), nullable=False, index=True)
-    appointment_date = Column(DateTime, nullable=False, index=True)
-    duration_minutes = Column(Integer, nullable=False, default=30)
-    reason = Column(String(500), nullable=False)
-    notes = Column(Text, nullable=True)
-    status = Column(String(20), nullable=False, default="pending", index=True)
+    appointment_date: Indexed(datetime)
+    appointment_time: str = Field(..., pattern=r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')
+    duration_minutes: int = Field(default=30)
     
-    # Timestamps
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
-    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    reason: Optional[str] = None
+    notes: Optional[str] = None
     
-    # Relationships
-    patient = relationship("Patient", back_populates="appointments")
+    status: Indexed(AppointmentStatus) = Field(default=AppointmentStatus.PENDING)
+    preferred_language: LanguageEnum = Field(default=LanguageEnum.ENGLISH)
     
-    def __repr__(self):
-        return f"<Appointment(id={self.id}, patient_id={self.patient_id}, date={self.appointment_date})>"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    confirmed_at: Optional[datetime] = None
+    cancelled_at: Optional[datetime] = None
+    
+    # Call tracking
+    call_sid: Optional[Indexed(str)] = None
+    call_duration_seconds: Optional[int] = None
+    
+    class Settings:
+        name = "appointments"
+        indexes = [
+            "patient_phone",
+            "appointment_date",
+            "status",
+            "call_sid",
+        ]
+    
+    class Config:
+        json_schema_extra = {
+            "example": {
+                "patient_name": "Rajesh Kumar",
+                "patient_phone": "+919876543210",
+                "patient_email": "rajesh@example.com",
+                "appointment_date": "2024-03-15T10:00:00",
+                "appointment_time": "10:00",
+                "reason": "Dental checkup",
+                "preferred_language": "ml"
+            }
+        }
 
 
-class VoiceSession(Base):
-    """Voice session model"""
-    __tablename__ = "voice_sessions"
+class Conversation(Document):
+    """Conversation history model"""
+    session_id: Indexed(str, unique=True)
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    patient_id = Column(String, ForeignKey("patients.id"), nullable=True, index=True)
-    room_name = Column(String(255), nullable=False, unique=True, index=True)
-    language = Column(String(5), nullable=False, default="en")
+    caller_phone: Indexed(str)
+    language: LanguageEnum = Field(default=LanguageEnum.ENGLISH)
     
-    # Session details
-    started_at = Column(DateTime, nullable=False, server_default=func.now())
-    ended_at = Column(DateTime, nullable=True)
-    duration_seconds = Column(Float, nullable=True)
+    transcript: Optional[str] = None
+    conversation_summary: Optional[str] = None
     
-    # Conversation
-    message_count = Column(Integer, nullable=False, default=0)
-    conversation_summary = Column(Text, nullable=True)
+    started_at: datetime = Field(default_factory=datetime.utcnow)
+    ended_at: Optional[datetime] = None
+    duration_seconds: Optional[int] = None
     
-    # Metadata
-    metadata = Column(JSON, nullable=True)
+    # LiveKit room info
+    room_name: Optional[str] = None
     
-    # Timestamps
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
-    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    # Associated appointment
+    appointment_id: Optional[str] = None
     
-    # Relationships
-    patient = relationship("Patient", back_populates="sessions")
-    messages = relationship("ConversationMessage", back_populates="session", cascade="all, delete-orphan")
+    # Flags
+    appointment_created: bool = Field(default=False)
     
-    def __repr__(self):
-        return f"<VoiceSession(id={self.id}, room_name={self.room_name}, language={self.language})>"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Settings:
+        name = "conversations"
+        indexes = [
+            "session_id",
+            "caller_phone",
+            "started_at",
+        ]
 
 
-class ConversationMessage(Base):
-    """Conversation message model"""
-    __tablename__ = "conversation_messages"
+class ConversationMessage(Document):
+    """Individual messages in a conversation"""
+    conversation_id: Indexed(str)
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    session_id = Column(String, ForeignKey("voice_sessions.id"), nullable=False, index=True)
-    role = Column(String(20), nullable=False)  # user, assistant, system
-    content = Column(Text, nullable=False)
-    language = Column(String(5), nullable=False)
+    role: str = Field(..., pattern=r'^(user|assistant|system)$')
+    content: str
+    language: Optional[str] = None
+    
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
     
     # Audio metadata
-    audio_duration_ms = Column(Float, nullable=True)
-    confidence_score = Column(Float, nullable=True)
+    audio_duration_ms: Optional[int] = None
     
-    # Additional metadata
-    intent = Column(String(100), nullable=True)
-    entities = Column(JSON, nullable=True)
-    metadata = Column(JSON, nullable=True)
-    
-    # Timestamps
-    created_at = Column(DateTime, nullable=False, server_default=func.now(), index=True)
-    
-    # Relationships
-    session = relationship("VoiceSession", back_populates="messages")
-    
-    def __repr__(self):
-        return f"<ConversationMessage(id={self.id}, session_id={self.session_id}, role={self.role})>"
+    class Settings:
+        name = "conversation_messages"
+        indexes = [
+            "conversation_id",
+            "timestamp",
+        ]
 
 
-class DentalKnowledgeBase(Base):
-    """Dental knowledge base model"""
-    __tablename__ = "dental_knowledge_base"
+class PatientRecord(Document):
+    """Patient records for repeat callers"""
+    phone: Indexed(str, unique=True)
+    name: str = Field(..., min_length=2, max_length=255)
+    email: Optional[EmailStr] = None
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    category = Column(String(100), nullable=False, index=True)
-    question = Column(Text, nullable=False)
-    answer_en = Column(Text, nullable=False)
-    answer_ml = Column(Text, nullable=False)
-    keywords = Column(JSON, nullable=True)
+    preferred_language: LanguageEnum = Field(default=LanguageEnum.ENGLISH)
     
-    # Metadata
-    difficulty_level = Column(String(20), nullable=True)  # basic, intermediate, advanced
-    source = Column(String(255), nullable=True)
-    verified = Column(Boolean, nullable=False, default=False)
+    total_appointments: int = Field(default=0)
+    total_calls: int = Field(default=0)
     
-    # Timestamps
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
-    updated_at = Column(DateTime, nullable=False, server_default=func.now(), onupdate=func.now())
+    notes: Optional[str] = None
     
-    def __repr__(self):
-        return f"<DentalKnowledgeBase(id={self.id}, category={self.category})>"
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    last_contact: Optional[datetime] = None
+    
+    class Settings:
+        name = "patient_records"
+        indexes = [
+            "phone",
+            "last_contact",
+        ]
 
 
-class SessionMetrics(Base):
-    """Session metrics model for analytics"""
-    __tablename__ = "session_metrics"
+class AnalyticsEvent(Document):
+    """Analytics and metrics tracking"""
+    event_type: Indexed(str)  # call_started, call_ended, appointment_created, etc.
+    event_data: dict = Field(default_factory=dict)
     
-    id = Column(String, primary_key=True, default=generate_uuid)
-    session_id = Column(String, ForeignKey("voice_sessions.id"), nullable=False, index=True)
+    session_id: Optional[str] = None
+    user_phone: Optional[str] = None
     
-    # Performance metrics
-    avg_response_time_ms = Column(Float, nullable=True)
-    avg_stt_latency_ms = Column(Float, nullable=True)
-    avg_llm_latency_ms = Column(Float, nullable=True)
-    avg_tts_latency_ms = Column(Float, nullable=True)
+    timestamp: Indexed(datetime) = Field(default_factory=datetime.utcnow)
     
-    # Quality metrics
-    language_detection_accuracy = Column(Float, nullable=True)
-    intent_recognition_accuracy = Column(Float, nullable=True)
-    interruption_count = Column(Integer, nullable=False, default=0)
-    error_count = Column(Integer, nullable=False, default=0)
-    
-    # Usage metrics
-    language_switches = Column(Integer, nullable=False, default=0)
-    intents_recognized = Column(JSON, nullable=True)
-    
-    # Timestamps
-    created_at = Column(DateTime, nullable=False, server_default=func.now())
-    
-    def __repr__(self):
-        return f"<SessionMetrics(id={self.id}, session_id={self.session_id})>"
+    class Settings:
+        name = "analytics_events"
+        indexes = [
+            "event_type",
+            "timestamp",
+            "session_id",
+        ]
+
+
+# List of all document models for initialization
+DOCUMENT_MODELS = [
+    Appointment,
+    Conversation,
+    ConversationMessage,
+    PatientRecord,
+    AnalyticsEvent,
+]
