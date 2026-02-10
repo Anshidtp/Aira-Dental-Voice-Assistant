@@ -4,8 +4,9 @@ from loguru import logger
 
 from backend.database.connect import Database
 
-db = Database.get_db()
-
+def get_database():
+    """Dependency to get the database instance"""
+    return Database.get_db()
 
 router = APIRouter()
 
@@ -13,7 +14,7 @@ router = APIRouter()
 @router.post("/livekit")
 async def livekit_webhook(
     request: Request,
-    db: AsyncSession = Depends(db)
+    db: AsyncSession = Depends(get_database)
 ):
     """
     Handle LiveKit webhooks
@@ -75,7 +76,7 @@ async def twilio_webhook(request: Request):
         logger.info(f"Twilio webhook - CallSid: {call_sid}, Status: {call_status}")
         
         # Handle different call statuses
-        if call_status == "ringing":
+        if call_status == "ringing": 
             # Call is ringing
             pass
         elif call_status == "in-progress":

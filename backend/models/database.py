@@ -1,8 +1,9 @@
 from beanie import Document, Indexed
 from pydantic import Field, EmailStr
-from datetime import datetime
+from datetime import datetime, date 
 from typing import Optional, List
 from enum import Enum
+from uuid import uuid4
 
 
 class AppointmentStatus(str, Enum):
@@ -24,18 +25,19 @@ class LanguageEnum(str, Enum):
 
 class Appointment(Document):
     """Appointment model"""
+    id: str = Field(default_factory=lambda: str(uuid4()))  # Use UUID for id
     patient_name: str = Field(..., min_length=2, max_length=255)
     patient_phone: Indexed(str) = Field(..., pattern=r'^\+?[1-9]\d{9,14}$')
     patient_email: Optional[EmailStr] = None
     
-    appointment_date: Indexed(datetime)
+    appointment_date: Indexed(date)  # Change to date
     appointment_time: str = Field(..., pattern=r'^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$')
     duration_minutes: int = Field(default=30)
     
     reason: Optional[str] = None
     notes: Optional[str] = None
     
-    status: Indexed(AppointmentStatus) = Field(default=AppointmentStatus.PENDING)
+    status: AppointmentStatus = Field(default=AppointmentStatus.PENDING)
     preferred_language: LanguageEnum = Field(default=LanguageEnum.ENGLISH)
     
     created_at: datetime = Field(default_factory=datetime.utcnow)
@@ -59,10 +61,11 @@ class Appointment(Document):
     class Config:
         json_schema_extra = {
             "example": {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
                 "patient_name": "Rajesh Kumar",
                 "patient_phone": "+919876543210",
                 "patient_email": "rajesh@example.com",
-                "appointment_date": "2024-03-15T10:00:00",
+                "appointment_date": "2024-03-15",
                 "appointment_time": "10:00",
                 "reason": "Dental checkup",
                 "preferred_language": "ml"

@@ -11,10 +11,10 @@ class Settings(BaseSettings):
     APP_VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True
-    SECRET_KEY: str = "your-secret-key-change-in-production"
+    SECRET_KEY: str = "2255"
     
     # MongoDB
-    MONGODB_URI: str = "mongodb://localhost:27017"
+    MONGODB_URI: str 
     MONGODB_DB_NAME: str = "dental_ai_db"
     MONGODB_MIN_POOL_SIZE: int = 10
     MONGODB_MAX_POOL_SIZE: int = 100
@@ -28,13 +28,13 @@ class Settings(BaseSettings):
     # LiveKit
     LIVEKIT_API_KEY: str
     LIVEKIT_API_SECRET: str
-    LIVEKIT_URL: str = "wss://your-livekit-server.livekit.cloud"
+    LIVEKIT_URL: str 
     LIVEKIT_ROOM_PREFIX: str = "dental_clinic_"
     
-    # Deepgram (STT)
-    DEEPGRAM_API_KEY: str
-    DEEPGRAM_MODEL: str = "nova-2"
-    DEEPGRAM_LANGUAGE: str = "multi"
+    # # Deepgram (STT)
+    # DEEPGRAM_API_KEY: str
+    # DEEPGRAM_MODEL: str = "nova-2"
+    # DEEPGRAM_LANGUAGE: str = "multi"
     
     # ElevenLabs (TTS)
     ELEVENLABS_API_KEY: str = ""

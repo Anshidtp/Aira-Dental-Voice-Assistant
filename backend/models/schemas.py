@@ -2,6 +2,7 @@ from pydantic import BaseModel, EmailStr, Field, validator
 from datetime import datetime, date, time
 from typing import Optional, List
 from enum import Enum
+import re
 
 
 class LanguageEnum(str, Enum):
@@ -51,10 +52,16 @@ class AppointmentUpdate(BaseModel):
     status: Optional[AppointmentStatus] = None
     preferred_language: Optional[LanguageEnum] = None
 
+    @validator("patient_phone")
+    def validate_patient_phone(cls, value):
+        if value and not re.match(r'^\+?[1-9]\d{9,14}$', value):
+            raise ValueError("Invalid phone number format. Must match pattern: ^\\+?[1-9]\\d{9,14}$")
+        return value
+
 
 class AppointmentResponse(AppointmentBase):
     """Schema for appointment response"""
-    id: int
+    id: str  # Changed from int to str to match UUID
     status: AppointmentStatus
     duration_minutes: int
     created_at: datetime

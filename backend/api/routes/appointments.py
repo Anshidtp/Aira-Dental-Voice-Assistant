@@ -1,6 +1,3 @@
-"""
-Appointments API Routes with MongoDB
-"""
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from datetime import date
@@ -48,7 +45,24 @@ async def create_appointment(appointment: AppointmentCreate):
             appointment_data=appointment
         )
         
-        return created_appointment
+        # Ensure response fields are correct
+        return {
+            "id": created_appointment.id,
+            "patient_name": created_appointment.patient_name,
+            "patient_phone": created_appointment.patient_phone,
+            "patient_email": created_appointment.patient_email,
+            "appointment_date": created_appointment.appointment_date,
+            "appointment_time": created_appointment.appointment_time,
+            "duration_minutes": created_appointment.duration_minutes,
+            "reason": created_appointment.reason,
+            "notes": created_appointment.notes,
+            "preferred_language": created_appointment.preferred_language,
+            "status": created_appointment.status,
+            "created_at": created_appointment.created_at,
+            "updated_at": created_appointment.updated_at,
+            "confirmed_at": created_appointment.confirmed_at,
+            "cancelled_at": created_appointment.cancelled_at
+        }
         
     except HTTPException:
         raise
